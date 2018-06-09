@@ -65,7 +65,54 @@ class WhaleDataset(torch.utils.data.Dataset):
         label = self.categories.index(self.data_frame.iloc[index,1])
         return image, label
 
-def predict(model,test_dataloader,device,categories):
+class TestDataset(torch.utils.data.Dataset):
+
+    def __init__(self,data_frame,data_dir,transform=None):
+        '''
+        Parameters
+        ----------
+        data_frame: (pandas data_frame) contains the names of the images in the
+            first column.
+        data_dir: (string) path to the test-data directory.
+
+        __getitem__ method returns
+        --------------------------
+        image: (PIL image) .
+        label: (integer) label for the image
+
+        Note
+        ----
+        1. To convert integer labels to strings use the categories attribute
+
+        2. Use pytorch transform.ToTensor() to transform the images.
+
+        3. The data_dir should point directly to the test data. For the
+        WhaleDataset on the other hand 'train' is appended to the data_dir.
+
+        '''
+        self.data_frame = data_frame
+        self.data_dir = data_dir
+        self.transform = transform
+
+    def __len__(self):
+        return self.data_frame.shape[0]
+
+    def __getitem__(self, index):
+        image_name = self.data_frame.iloc[index,0]
+        full_image_name = os.path.join(self.data_dir,image_name)
+
+        image = PIL.Image.open(full_image_name)
+        # some of the images are gray-scale only. Convert them to RGB. This
+        # basically just copies the image 3 times.
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+
+        if self.transform != None:
+            image = self.transform(image)
+
+        return image, image_name
+
+def predict(model,test_dataloader,device,categories,verbose=True):
     '''Still need to test this
 
     Parameters
@@ -82,7 +129,8 @@ def predict(model,test_dataloader,device,categories):
 
     '''
 
-    size = float(len(dataloader.sampler))
+    start_time = time.time()
+    size = float(len(test_dataloader.sampler))
     Id_vals = []
     Image_vals = []
     cols = ['Image', 'Id']
@@ -95,14 +143,23 @@ def predict(model,test_dataloader,device,categories):
         #forward
         out = model(images)
         _, preds = torch.topk(out,k=5,dim=1)
-        torch.cat(image_names,preds,dim=1)
+        # torch.cat((image_names,preds),dim=1)
 
         preds = preds.tolist()
-        for j in xrange(batch_size):
+        # Note image_names is a tuple. The final batch may have a
+        # different length. That is why I am using the length of image_names as
+        # in xrange below.
+        for j in xrange(len(image_names)):
             Image_vals.append(image_names[j])
             Id_vals.append(''.join([categories[i]+' ' for i in preds[j]]))
         df = pd.DataFrame({'Image':Image_vals,\
                            'Id':Id_vals})
+        # make sure that image is column 0 and Id is column 1
+        df = df.reindex(columns=['Image','Id'])
+
+    end_time = time.time()
+    if verbose:
+        print 'Elapsed time: {:.4f}'.format(end_time - start_time)
 
     return df
 

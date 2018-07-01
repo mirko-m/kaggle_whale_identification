@@ -130,12 +130,10 @@ def predict(model,test_dataloader,device,categories,verbose=True):
     '''
 
     start_time = time.time()
-    size = float(len(test_dataloader.sampler))
     Id_vals = []
     Image_vals = []
     cols = ['Image', 'Id']
-    result = []
-
+    
     # iterate over data
     for images, image_names in test_dataloader:
         images = images.to(device)

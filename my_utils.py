@@ -161,6 +161,50 @@ def predict(model,test_dataloader,device,categories,verbose=True):
 
     return df
 
+def predict_v2(model,test_dataloader,device,categories,verbose=True):
+    '''Work in progress
+    '''
+
+    start_time = time.time()
+    Id_vals = []
+    Prob_vals = []
+    Image_vals = []
+    cols = ['Image', 'Prediction']
+
+    # iterate over data
+    for images, image_names in test_dataloader:
+        images = images.to(device)
+
+        #forward
+        out = model(images)
+        out = torch.exp(out)
+        norm = torch.norm(out,p=1,dim=1,keepdim=True)
+        out = out/norm
+        pred_val, pred_ind = torch.topk(out,k=20,dim=1)
+
+        pred_val = pred_val.tolist()
+        pred_ind = pred_ind.tolist()
+        # Note image_names is a tuple. The final batch may have a
+        # different length. That is why I am using the length of image_names
+        # in xrange below.
+        for j in xrange(len(image_names)):
+            Image_vals.append(image_names[j])
+            Id_vals.append([categories[i] for i in pred_ind[j]])
+            Prob_vals.append([p for p in pred_val[j]])
+            df_Id = pd.DataFrame({'Image':Image_vals,\
+                                  'Id':Id_vals})
+            df_prob = pd.DataFrame({'Image':Image_vals,\
+                                    'Probability':Prob_vals})
+        # make sure that image is column 0 and Id is column 1
+        df_Id = df_Id.reindex(columns=['Image','Id'])
+        df_prob = df_prob.reindex(columns=['Image','Probability'])
+
+    end_time = time.time()
+    if verbose:
+        print 'Elapsed time: {:.4f}'.format(end_time - start_time)
+
+    return df_Id, df_prob
+
 def _val_loop(model,dataloader,criterion,device):
     '''
     Helper function implementing the validation loop
